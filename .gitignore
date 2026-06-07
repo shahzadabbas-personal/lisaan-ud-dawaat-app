@@ -1,0 +1,9 @@
+node_modules/
+dist/
+*.tsbuildinfo
+dev-dist/
+.DS_Store
+
+# emitted by tsc -b (composite project) — generated, not source
+vite.config.js
+vite.config.d.ts
