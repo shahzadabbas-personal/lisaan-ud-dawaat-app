@@ -38,6 +38,33 @@ Return ONLY valid JSON, no prose, no markdown:
 
 const API_URL = "https://api.anthropic.com/v1/messages";
 
+// Structured-outputs schema: guarantees parseable JSON on models that support
+// output_config.format (all KNOWN_MODELS). Custom/older models fall back to
+// the prompt-instructed JSON + defensive parse below.
+const CANDIDATES_SCHEMA = {
+  type: "object",
+  properties: {
+    candidates: {
+      type: "array",
+      items: {
+        type: "object",
+        properties: {
+          translit: { type: "string" },
+          script: { type: "string" },
+          meaning: { type: "string" },
+          root: { type: "string" },
+          note: { type: "string" },
+          confidence: { type: "string", enum: ["high", "medium", "low"] },
+        },
+        required: ["translit", "script", "meaning", "root", "note", "confidence"],
+        additionalProperties: false,
+      },
+    },
+  },
+  required: ["candidates"],
+  additionalProperties: false,
+} as const;
+
 /** Strip stray code fences and isolate the JSON object before parsing. */
 function extractJson(text: string): string {
   let t = text.trim();
@@ -75,15 +102,17 @@ function coerceCandidate(raw: unknown): LlmCandidate | null {
   };
 }
 
-export async function askLlm(
+async function callApi(
   query: string,
+  context: string,
   settings: Settings,
-): Promise<LlmCandidate[]> {
-  if (!settings.apiKey) {
-    throw new Error("No API key set. Add one in Settings.");
-  }
+  structured: boolean,
+): Promise<Response> {
+  const userContent = context.trim()
+    ? `${query}\n\nContext (what was being discussed): ${context.trim()}`
+    : query;
 
-  const res = await fetch(API_URL, {
+  return fetch(API_URL, {
     method: "POST",
     headers: {
       "x-api-key": settings.apiKey,
@@ -95,9 +124,28 @@ export async function askLlm(
       model: settings.model,
       max_tokens: 1024,
       system: SYSTEM_PROMPT,
-      messages: [{ role: "user", content: query }],
+      messages: [{ role: "user", content: userContent }],
+      ...(structured
+        ? { output_config: { format: { type: "json_schema", schema: CANDIDATES_SCHEMA } } }
+        : {}),
     }),
   });
+}
+
+export async function askLlm(
+  query: string,
+  settings: Settings,
+  context = "",
+): Promise<LlmCandidate[]> {
+  if (!settings.apiKey) {
+    throw new Error("No API key set. Add one in Settings.");
+  }
+
+  let res = await callApi(query, context, settings, true);
+  if (res.status === 400) {
+    // custom/older model may not support output_config.format — retry plain
+    res = await callApi(query, context, settings, false);
+  }
 
   if (!res.ok) {
     let detail = `${res.status} ${res.statusText}`;

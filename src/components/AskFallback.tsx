@@ -14,6 +14,7 @@ export function AskFallback({ query, settings, onSave }: Props) {
   const [error, setError] = useState<string | null>(null);
   const [candidates, setCandidates] = useState<LlmCandidate[] | null>(null);
   const [savedIdx, setSavedIdx] = useState<Set<number>>(new Set());
+  const [context, setContext] = useState("");
 
   async function ask() {
     setLoading(true);
@@ -21,7 +22,7 @@ export function AskFallback({ query, settings, onSave }: Props) {
     setCandidates(null);
     setSavedIdx(new Set());
     try {
-      const res = await askLlm(query.trim(), settings);
+      const res = await askLlm(query.trim(), settings, context);
       setCandidates(res);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Something went wrong.");
@@ -37,6 +38,16 @@ export function AskFallback({ query, settings, onSave }: Props) {
 
   return (
     <div className="ask">
+      <input
+        className="ask-context"
+        value={context}
+        onChange={(e) => setContext(e.target.value)}
+        placeholder="Optional: what was the bayaan about?"
+        autoCapitalize="off"
+        autoComplete="off"
+        spellCheck={false}
+        aria-label="Context for AI lookup"
+      />
       <button className="ask-btn" onClick={ask} disabled={loading} type="button">
         {loading ? "Asking…" : "Ask AI"}
       </button>
