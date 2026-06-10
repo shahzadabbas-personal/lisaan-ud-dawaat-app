@@ -15,10 +15,11 @@ import { ResultsList } from "./components/ResultsList";
 import { AskFallback } from "./components/AskFallback";
 import { EntryCard } from "./components/EntryCard";
 import { GlossaryList } from "./components/GlossaryList";
+import { BrowseView } from "./components/BrowseView";
 import { SettingsPanel } from "./components/SettingsPanel";
 import { ImportExport } from "./components/ImportExport";
 
-type View = "home" | "glossary" | "data";
+type View = "home" | "browse" | "glossary" | "data";
 
 interface Selected {
   entry: Entry;
@@ -97,7 +98,13 @@ export default function App() {
       <main className="content">
         {view === "home" && (
           <>
-            <CaptureBar query={query} onChange={setQuery} />
+            <CaptureBar
+              query={query}
+              onChange={setQuery}
+              onSubmit={() => {
+                if (results[0]) openEntry(results[0]);
+              }}
+            />
             <ResultsList entries={results} onSelect={openEntry} />
             {query.trim() && (
               <>
@@ -113,6 +120,10 @@ export default function App() {
               </p>
             )}
           </>
+        )}
+
+        {view === "browse" && (
+          <BrowseView entries={entries} onSelect={openEntry} />
         )}
 
         {view === "glossary" && (
@@ -139,6 +150,9 @@ export default function App() {
       <nav className="tabbar">
         <button className={view === "home" ? "active" : ""} onClick={() => setView("home")} type="button">
           Search
+        </button>
+        <button className={view === "browse" ? "active" : ""} onClick={() => setView("browse")} type="button">
+          Browse
         </button>
         <button className={view === "glossary" ? "active" : ""} onClick={() => setView("glossary")} type="button">
           Glossary
