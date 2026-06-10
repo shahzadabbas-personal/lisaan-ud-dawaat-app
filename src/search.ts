@@ -13,13 +13,23 @@ const PAIRS: Record<string, string> = {
   aa: "a",
   ee: "i",
   oo: "u",
+  ou: "u", // nour -> nur
+  au: "aw", // tauhid -> tawhid
+  ai: "ay", // husain -> husayn
+  ei: "ay", // hussein -> husayn
+  iy: "i", // wasiy -> wasi (after yy collapse)
   th: "s",
+  dh: "z", // dhikr -> zikr
+  ph: "f", // phir -> fir
   kh: "kh", // kept as a cluster
   gh: "gh", // kept as a cluster
+  ch: "ch", // kept as a cluster (protects c -> k below)
+  sh: "sh", // kept as a cluster (protects s passthrough)
 };
 
 const SINGLE: Record<string, string> = {
   q: "k",
+  c: "k", // lone c is a hard-k guess
   s: "s",
   z: "z",
   w: "w",
@@ -68,8 +78,12 @@ export function normalize(input: string): string {
   s = s.replace(/[^a-z؀-ۿ\s]/g, " ");
   // 3. collapse doubled consonants
   s = collapseDoubledConsonants(s);
-  // 4. phonetic fold
-  s = fold(s);
+  // 4. phonetic fold — to fixpoint, since one pass can expose a new pair
+  //    (waseey -> wasiy -> wasi). All folds are contractive or stable.
+  for (let prev = ""; prev !== s; ) {
+    prev = s;
+    s = fold(s);
+  }
   // defensive: collapse any consecutive duplicates the fold produced
   s = s.replace(/(.)\1+/g, "$1");
   // 5. trim + collapse whitespace
@@ -135,9 +149,10 @@ export function buildSearchIndex(entries: Entry[]): SearchIndex {
 
 // Lower tier = stronger match.
 const TIER_EXACT = 0;
-const TIER_PREFIX = 1;
-const TIER_MEANING = 2;
-const TIER_FUZZY = 3;
+const TIER_PREFIX = 1; // whole-key or word-boundary prefix
+const TIER_SUBSTR = 2; // query inside the key (heard the middle of a word)
+const TIER_MEANING = 3;
+const TIER_FUZZY = 4;
 
 interface Scored {
   entry: Entry;
@@ -148,9 +163,10 @@ interface Scored {
 /**
  * Rank entries against a query. Strategy (ranked):
  *  1. exact searchKey/heardForm equality
- *  2. prefix match
- *  3. meaning substring (search by remembered English)
- *  4. fuzzy: Levenshtein <= 2, ranked by distance then lookupCount
+ *  2. prefix match — whole key, either direction, or any word of a phrase
+ *  3. substring — query heard mid-word (>= 3 chars)
+ *  4. meaning substring (search by remembered English)
+ *  5. fuzzy: Levenshtein <= 1 for short queries, <= 2 otherwise
  */
 export function searchEntries(
   query: string,
@@ -160,47 +176,55 @@ export function searchEntries(
   const q = normalize(query);
   if (!q) return [];
 
+  // Short queries get a tighter fuzzy net — 2 edits on a 4-char guess is noise.
+  const maxFuzzy = q.length <= 4 ? 1 : 2;
+
   const results: Scored[] = [];
 
   for (const item of index) {
     let best: Scored | null = null;
 
+    const consider = (tier: number, distance: number) => {
+      if (!best || tier < best.tier || (tier === best.tier && distance < best.distance)) {
+        best = { entry: item.entry, tier, distance };
+      }
+    };
+
     for (const key of item.keys) {
       if (key === q) {
-        best = { entry: item.entry, tier: TIER_EXACT, distance: 0 };
+        consider(TIER_EXACT, 0);
         break; // can't beat exact
       }
       if (key.startsWith(q) || q.startsWith(key)) {
-        if (!best || best.tier > TIER_PREFIX) {
-          // shorter length gap ranks higher within prefix tier
-          best = {
-            entry: item.entry,
-            tier: TIER_PREFIX,
-            distance: Math.abs(key.length - q.length),
-          };
-        }
+        consider(TIER_PREFIX, Math.abs(key.length - q.length));
         continue;
       }
-    }
-
-    if (!best || best.tier > TIER_MEANING) {
-      if (q.length >= 3 && item.meaningNorm.includes(q)) {
-        if (!best || best.tier > TIER_MEANING) {
-          best = { entry: item.entry, tier: TIER_MEANING, distance: 0 };
+      if (key.includes(" ")) {
+        // phrase entry: match the query against each word
+        for (const word of key.split(" ")) {
+          if (word === q || word.startsWith(q)) {
+            // +1 so a whole-key prefix outranks a word-of-phrase prefix
+            consider(TIER_PREFIX, Math.abs(word.length - q.length) + 1);
+          }
         }
+      }
+      if (q.length >= 3 && key.includes(q)) {
+        consider(TIER_SUBSTR, key.length - q.length);
       }
     }
 
-    if (!best || best.tier > TIER_FUZZY) {
-      let bestDist = 3;
+    if ((!best || (best as Scored).tier > TIER_MEANING) && q.length >= 3 && item.meaningNorm.includes(q)) {
+      consider(TIER_MEANING, 0);
+    }
+
+    if (!best || (best as Scored).tier > TIER_FUZZY) {
+      let bestDist = maxFuzzy + 1;
       for (const key of item.keys) {
-        const d = boundedLevenshtein(q, key, 2);
+        const d = boundedLevenshtein(q, key, maxFuzzy);
         if (d < bestDist) bestDist = d;
       }
-      if (bestDist <= 2) {
-        if (!best || best.tier > TIER_FUZZY) {
-          best = { entry: item.entry, tier: TIER_FUZZY, distance: bestDist };
-        }
+      if (bestDist <= maxFuzzy) {
+        consider(TIER_FUZZY, bestDist);
       }
     }
 

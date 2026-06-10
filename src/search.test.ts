@@ -40,7 +40,7 @@ describe("normalize", () => {
   });
 
   it("collapses doubled consonants", () => {
-    expect(normalize("waṣiyy")).toBe("wasiy");
+    expect(normalize("waṣiyy")).toBe("wasi"); // yy -> y, then iy -> i
     expect(normalize("nubuwwat")).toBe(normalize("nubuwat"));
   });
 
@@ -64,6 +64,26 @@ describe("normalize", () => {
   it("strips apostrophes and leading glottal marks", () => {
     expect(normalize("'azaa")).toBe(normalize("azaa"));
     expect(normalize("masaa'ib")).toBe(normalize("masaaib"));
+  });
+
+  it("folds dh/ph/c spelling guesses", () => {
+    expect(normalize("dhikr")).toBe(normalize("zikr"));
+    expect(normalize("phir")).toBe(normalize("fir"));
+    expect(normalize("calaam")).toBe(normalize("kalaam"));
+    // ch/sh clusters survive the c->k and th->s folds
+    expect(normalize("chand")).toBe("chand");
+    expect(normalize("shahid")).toBe("shahid");
+  });
+
+  it("folds diphthong variants together", () => {
+    expect(normalize("husain")).toBe(normalize("husayn"));
+    expect(normalize("hussein")).toBe(normalize("husayn"));
+    expect(normalize("tauhid")).toBe(normalize("tawhid"));
+  });
+
+  it("folds iy endings so wasi matches wasiyy exactly", () => {
+    expect(normalize("waṣiyy")).toBe(normalize("wasi"));
+    expect(normalize("waseey")).toBe(normalize("wasi"));
   });
 });
 
@@ -121,5 +141,25 @@ describe("searchEntries", () => {
 
   it("returns nothing for empty query", () => {
     expect(searchEntries("", index)).toEqual([]);
+  });
+
+  it("matches a word inside a phrase entry", () => {
+    const phraseIndex = buildSearchIndex([
+      entry({ translit: "yawm al-qiyaamat", meaning: "day of resurrection" }),
+    ]);
+    const r = searchEntries("kiyamat", phraseIndex);
+    expect(r[0]?.translit).toBe("yawm al-qiyaamat");
+  });
+
+  it("matches the query as a substring mid-word", () => {
+    const r = searchEntries("haadat", index); // inside shahaadat
+    expect(r.map((e) => e.translit)).toContain("shahaadat");
+  });
+
+  it("tightens fuzzy matching for short queries", () => {
+    // "imom" (len 4) is distance 1 from "imam" -> still matches
+    expect(searchEntries("imom", index).map((e) => e.translit)).toContain("imam");
+    // "izm" is distance 2 from "imam" -> rejected at short-query threshold
+    expect(searchEntries("izm", index).map((e) => e.translit)).not.toContain("imam");
   });
 });
