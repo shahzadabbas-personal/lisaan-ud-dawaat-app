@@ -5,9 +5,10 @@ heard during waaz (sermons). Type a rough phonetic guess → get a meaning fast,
 offline. Local misses fall back to the Anthropic API; whatever resolves is saved
 to the local glossary so it joins the fast path next time.
 
-Phase 1 only. Out of scope (do **not** build without being asked): thematic
-browse/insights (Phase 2), audio capture + speech-to-text (Phase 3), French
-defs, spaced repetition, anything multi-user.
+Phases 1 + 2 (search, glossary, LLM fallback, thematic Browse/insights —
+`src/components/BrowseView.tsx`). Out of scope (do **not** build without being
+asked): audio capture + speech-to-text (Phase 3), French defs, spaced
+repetition, anything multi-user.
 
 ## Commands
 
