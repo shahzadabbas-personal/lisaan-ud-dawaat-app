@@ -91,3 +91,8 @@ plain http). Build → host `dist/` on Cloudflare Pages / Vercel / Netlify (buil
 `npm run build`, output `dist`). Repo: `shahzadabbas-personal/lisaan-ud-dawaat-app`.
 API key entered on-device in Settings; set a spend limit in the Anthropic console
 (can't be set from the app).
+
+The live deploy is Cloudflare Pages, building from `main`. The CF deploy step
+runs `npx wrangler versions upload` (Worker-with-static-assets flow), and current
+wrangler needs **Node ≥22** — so `.nvmrc` must stay at 22+ or the deploy step
+fails *after* a green build. Don't downgrade it.
