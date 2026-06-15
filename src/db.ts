@@ -53,6 +53,10 @@ export async function deleteEntry(id: string): Promise<void> {
   await db.entries.delete(id);
 }
 
+export async function bulkDelete(ids: string[]): Promise<void> {
+  await db.entries.bulkDelete(ids);
+}
+
 export async function incrementLookup(id: string): Promise<void> {
   const e = await db.entries.get(id);
   if (e) {

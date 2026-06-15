@@ -1,5 +1,5 @@
 import { useRef, useState } from "react";
-import { exportGlossary, importGlossary } from "../importExport";
+import { exportGlossary, importGlossary, dedupeGlossary } from "../importExport";
 
 interface Props {
   onImported: () => void;
@@ -25,6 +25,17 @@ export function ImportExport({ onImported }: Props) {
     }
   }
 
+  async function handleDedupe() {
+    setMsg(null);
+    try {
+      const n = await dedupeGlossary();
+      setMsg(n === 0 ? "No duplicates found." : `Removed ${n} duplicate entries.`);
+      if (n > 0) onImported();
+    } catch (err) {
+      setMsg(err instanceof Error ? err.message : "Dedupe failed.");
+    }
+  }
+
   return (
     <div className="importexport">
       <h2>Backup</h2>
@@ -38,6 +49,9 @@ export function ImportExport({ onImported }: Props) {
         </button>
         <button className="ghost-btn" onClick={() => fileRef.current?.click()} type="button">
           Import JSON
+        </button>
+        <button className="ghost-btn" onClick={handleDedupe} type="button">
+          Remove duplicates
         </button>
         <input
           ref={fileRef}
