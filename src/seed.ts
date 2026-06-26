@@ -18,7 +18,17 @@ interface SeedFile {
 }
 
 /** Load the bundled seed corpus into the store, but only if it's empty. */
-export async function loadSeedIfEmpty(): Promise<number> {
+export function loadSeedIfEmpty(): Promise<number> {
+  // Share one in-flight load so concurrent callers (e.g. React StrictMode's
+  // double effect invocation in dev) can't both pass the empty check and
+  // seed the corpus twice.
+  if (!seedPromise) seedPromise = doLoadSeedIfEmpty();
+  return seedPromise;
+}
+
+let seedPromise: Promise<number> | null = null;
+
+async function doLoadSeedIfEmpty(): Promise<number> {
   const existing = await countEntries();
   if (existing > 0) return 0;
 
