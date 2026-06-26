@@ -1,57 +1,29 @@
-import { useState } from "react";
-import { askLlm } from "../llm";
+import { useEffect, useState } from "react";
 import type { LlmCandidate } from "../types";
-import type { Settings } from "../settings";
 
 interface Props {
-  query: string;
-  settings: Settings;
+  error: string | null;
+  candidates: LlmCandidate[] | null;
   onSave: (candidate: LlmCandidate) => Promise<void>;
 }
 
-export function AskFallback({ query, settings, onSave }: Props) {
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [candidates, setCandidates] = useState<LlmCandidate[] | null>(null);
+/** Renders the AI fallback output (error + ranked candidates). The trigger
+ *  (the "Ask AI" button) lives in the sticky search row in App. */
+export function AskResults({ error, candidates, onSave }: Props) {
   const [savedIdx, setSavedIdx] = useState<Set<number>>(new Set());
-  const [context, setContext] = useState("");
 
-  async function ask() {
-    setLoading(true);
-    setError(null);
-    setCandidates(null);
-    setSavedIdx(new Set());
-    try {
-      const res = await askLlm(query.trim(), settings, context);
-      setCandidates(res);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Something went wrong.");
-    } finally {
-      setLoading(false);
-    }
-  }
+  // A fresh ask replaces the candidate set — reset the saved markers with it.
+  useEffect(() => setSavedIdx(new Set()), [candidates]);
 
   async function save(c: LlmCandidate, idx: number) {
     await onSave(c);
     setSavedIdx((prev) => new Set(prev).add(idx));
   }
 
+  if (!error && !candidates) return null;
+
   return (
     <div className="ask">
-      <input
-        className="ask-context"
-        value={context}
-        onChange={(e) => setContext(e.target.value)}
-        placeholder="Optional: what was the bayaan about?"
-        autoCapitalize="off"
-        autoComplete="off"
-        spellCheck={false}
-        aria-label="Context for AI lookup"
-      />
-      <button className="ask-btn" onClick={ask} disabled={loading} type="button">
-        {loading ? "Asking…" : "Ask AI"}
-      </button>
-
       {error && <div className="ask-error">{error}</div>}
 
       {candidates && (

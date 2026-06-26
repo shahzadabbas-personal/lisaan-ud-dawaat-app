@@ -104,14 +104,9 @@ function coerceCandidate(raw: unknown): LlmCandidate | null {
 
 async function callApi(
   query: string,
-  context: string,
   settings: Settings,
   structured: boolean,
 ): Promise<Response> {
-  const userContent = context.trim()
-    ? `${query}\n\nContext (what was being discussed): ${context.trim()}`
-    : query;
-
   return fetch(API_URL, {
     method: "POST",
     headers: {
@@ -124,7 +119,7 @@ async function callApi(
       model: settings.model,
       max_tokens: 1024,
       system: SYSTEM_PROMPT,
-      messages: [{ role: "user", content: userContent }],
+      messages: [{ role: "user", content: query }],
       ...(structured
         ? { output_config: { format: { type: "json_schema", schema: CANDIDATES_SCHEMA } } }
         : {}),
@@ -135,16 +130,15 @@ async function callApi(
 export async function askLlm(
   query: string,
   settings: Settings,
-  context = "",
 ): Promise<LlmCandidate[]> {
   if (!settings.apiKey) {
     throw new Error("No API key set. Add one in Settings.");
   }
 
-  let res = await callApi(query, context, settings, true);
+  let res = await callApi(query, settings, true);
   if (res.status === 400) {
     // custom/older model may not support output_config.format — retry plain
-    res = await callApi(query, context, settings, false);
+    res = await callApi(query, settings, false);
   }
 
   if (!res.ok) {

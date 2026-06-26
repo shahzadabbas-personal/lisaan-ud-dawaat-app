@@ -113,24 +113,35 @@ body {
 .conf-medium { background: #b58a2e; color: #fff; }
 .conf-low { background: #8a3b32; color: #fff; }
 
-/* Ask AI */
-.ask { margin-top: 12px; }
-.ask-context {
-  width: 100%;
-  margin-bottom: 10px;
-  font-size: 14px;
+/* Sticky search row (search field + compact Ask-AI trigger) */
+.home-head {
+  position: sticky;
+  /* pull up over .content's top inset so list rows don't peek above the row */
+  top: 0;
+  z-index: 5;
+  background: var(--bg);
+  margin: calc(-1 * env(safe-area-inset-top, 12px)) -14px 12px;
+  padding: calc(env(safe-area-inset-top, 12px) + 6px) 14px 10px;
+  border-bottom: 1px solid var(--line);
 }
-.ask-btn {
-  width: 100%;
-  padding: 14px;
-  font-size: 16px;
+.search-row { display: flex; gap: 8px; align-items: stretch; }
+.search-row .capture-wrap { flex: 1; margin: 0; }
+.ask-compact {
+  flex: 0 0 auto;
+  white-space: nowrap;
+  padding: 0 14px;
   border-radius: var(--radius);
   border: 1px dashed var(--accent);
   background: transparent;
   color: var(--accent);
+  font-size: 14px;
+  font-weight: 600;
   cursor: pointer;
 }
-.ask-btn:disabled { opacity: 0.6; }
+.ask-compact:disabled { opacity: 0.5; }
+
+/* Ask AI */
+.ask { margin-top: 12px; }
 .ask-error { color: var(--danger); margin-top: 10px; font-size: 14px; }
 .ask-results { list-style: none; padding: 0; margin: 12px 0 0; }
 .ask-card {

@@ -9,10 +9,11 @@ import {
 } from "./db";
 import { loadSeedIfEmpty } from "./seed";
 import { buildSearchIndex, searchEntries } from "./search";
+import { askLlm } from "./llm";
 import { loadSettings, type Settings } from "./settings";
 import { CaptureBar } from "./components/CaptureBar";
 import { ResultsList } from "./components/ResultsList";
-import { AskFallback } from "./components/AskFallback";
+import { AskResults } from "./components/AskResults";
 import { EntryCard } from "./components/EntryCard";
 import { GlossaryList } from "./components/GlossaryList";
 import { BrowseView } from "./components/BrowseView";
@@ -37,6 +38,9 @@ export default function App() {
   const [query, setQuery] = useState("");
   const [selected, setSelected] = useState<Selected | null>(null);
   const [settings, setSettings] = useState<Settings>(loadSettings());
+  const [askLoading, setAskLoading] = useState(false);
+  const [askError, setAskError] = useState<string | null>(null);
+  const [askCandidates, setAskCandidates] = useState<LlmCandidate[] | null>(null);
 
   async function reload() {
     setEntries(await getAllEntries());
@@ -55,6 +59,26 @@ export default function App() {
     () => (query.trim() ? searchEntries(query, index) : []),
     [query, index],
   );
+
+  // Stale AI candidates belong to the previous guess — clear them as the user types.
+  useEffect(() => {
+    setAskCandidates(null);
+    setAskError(null);
+  }, [query]);
+
+  async function runAsk() {
+    if (!query.trim()) return;
+    setAskLoading(true);
+    setAskError(null);
+    setAskCandidates(null);
+    try {
+      setAskCandidates(await askLlm(query.trim(), settings));
+    } catch (e) {
+      setAskError(e instanceof Error ? e.message : "Something went wrong.");
+    } finally {
+      setAskLoading(false);
+    }
+  }
 
   async function openEntry(entry: Entry) {
     await incrementLookup(entry.id);
@@ -98,22 +122,30 @@ export default function App() {
       <main className="content">
         {view === "home" && (
           <>
-            <CaptureBar
-              query={query}
-              onChange={setQuery}
-              onSubmit={() => {
-                if (results[0]) openEntry(results[0]);
-              }}
-            />
+            <div className="home-head">
+              <div className="search-row">
+                <CaptureBar
+                  query={query}
+                  onChange={setQuery}
+                  onSubmit={() => {
+                    if (results[0]) openEntry(results[0]);
+                  }}
+                />
+                <button
+                  className="ask-compact"
+                  onClick={runAsk}
+                  disabled={!query.trim() || askLoading}
+                  type="button"
+                >
+                  {askLoading ? "✦ …" : "✦ Ask AI"}
+                </button>
+              </div>
+            </div>
             <ResultsList entries={results} onSelect={openEntry} />
-            {query.trim() && (
-              <>
-                {results.length === 0 && (
-                  <p className="empty-hint">No local match — ask the AI.</p>
-                )}
-                <AskFallback query={query} settings={settings} onSave={saveCandidate} />
-              </>
+            {query.trim() && results.length === 0 && !askCandidates && !askError && (
+              <p className="empty-hint">No local match — ask the AI.</p>
             )}
+            <AskResults error={askError} candidates={askCandidates} onSave={saveCandidate} />
             {!query.trim() && (
               <p className="empty-hint">
                 {entries.length} words in your glossary. Start typing what you heard.
